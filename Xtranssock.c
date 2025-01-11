@@ -159,6 +159,12 @@ from the copyright holders.
 #error "Cannot build IPv6 support without AF_INET6"
 #endif
 
+/* Temporary workaround for consumers whose configure scripts were
+   generated with pre-1.6 versions of xtrans.m4 */
+#if defined(IPv6) && !defined(HAVE_GETADDRINFO)
+#define HAVE_GETADDRINFO
+#endif
+
 /*
  * This is the Socket implementation of the X Transport service layer
  *
@@ -175,6 +181,13 @@ typedef struct _Sockettrans2dev {
     int		protocol;
 } Sockettrans2dev;
 
+/* As documented in the X(7) man page:
+ *  tcp     TCP over IPv4 or IPv6
+ *  inet    TCP over IPv4 only
+ *  inet6   TCP over IPv6 only
+ *  unix    UNIX Domain Sockets (same host only)
+ *  local   Platform preferred local connection method
+ */
 static Sockettrans2dev Sockettrans2devtab[] = {
 #ifdef TCPCONN
     {"inet",AF_INET,SOCK_STREAM,SOCK_DGRAM,0},
@@ -201,7 +214,7 @@ static int TRANS(SocketINETClose) (XtransConnInfo ciptr);
 #endif
 
 #if (defined(TCPCONN) && defined(TRANS_SERVER)) || defined(TRANS_REOPEN) || \
-    !defined(IPv6)
+    !defined(HAVE_GETADDRINFO)
 static int
 is_numeric (const char *str)
 {
@@ -1319,7 +1332,7 @@ TRANS(SocketUNIXAccept) (XtransConnInfo ciptr, int *status)
 
 #ifdef TCPCONN
 
-#ifdef IPv6
+#ifdef HAVE_GETADDRINFO
 struct addrlist {
     struct addrinfo *	addr;
     struct addrinfo *	firstaddr;
@@ -1338,7 +1351,7 @@ TRANS(SocketINETConnect) (XtransConnInfo ciptr,
     struct sockaddr *	socketaddr = NULL;
     int			socketaddrlen = 0;
     int			res;
-#ifdef IPv6
+#ifdef HAVE_GETADDRINFO
     struct addrinfo 	hints;
     char		ntopbuf[INET6_ADDRSTRLEN];
     int			resetonce = 0;
@@ -1385,7 +1398,7 @@ TRANS(SocketINETConnect) (XtransConnInfo ciptr,
     }
 #endif
 
-#ifdef IPv6
+#ifdef HAVE_GETADDRINFO
     {
 	if (addrlist != NULL) {
 	    if (strcmp(host,addrlist->host) || strcmp(port,addrlist->port)) {
@@ -1410,6 +1423,12 @@ TRANS(SocketINETConnect) (XtransConnInfo ciptr,
 	    addrlist->host[sizeof(addrlist->host) - 1] = '\0';
 
 	    bzero(&hints,sizeof(hints));
+#ifdef IPv6
+	    if (strcmp(Sockettrans2devtab[ciptr->index].transname, "tcp") == 0)
+		hints.ai_family = AF_UNSPEC;
+	    else
+#endif
+		hints.ai_family = Sockettrans2devtab[ciptr->index].family;
 	    hints.ai_socktype = Sockettrans2devtab[ciptr->index].devcotsname;
 
 	    res = getaddrinfo(host,port,&hints,&addrlist->firstaddr);
@@ -1455,6 +1474,7 @@ TRANS(SocketINETConnect) (XtransConnInfo ciptr,
 		prmsg (4,"SocketINETConnect() sockname.sin_port = %d\n",
 			ntohs(sin->sin_port));
 
+#ifdef IPv6
 		if (Sockettrans2devtab[ciptr->index].family == AF_INET6) {
 		    if (strcmp(Sockettrans2devtab[ciptr->index].transname,
 				"tcp") == 0) {
@@ -1523,6 +1543,7 @@ TRANS(SocketINETConnect) (XtransConnInfo ciptr,
 			prmsg (4,"SocketINETConnect() Skipping IPv6 address\n");
 		    }
 		}
+#endif /* IPv6 */
 	    } else {
 		socketaddr = NULL; /* Unsupported address type */
 	    }
@@ -1531,7 +1552,7 @@ TRANS(SocketINETConnect) (XtransConnInfo ciptr,
 	    }
 	}
     }
-#else
+#else /* !HAVE_GETADDRINFO */
     {
 	/*
 	 * Build the socket name.
@@ -1699,7 +1720,7 @@ TRANS(SocketINETConnect) (XtransConnInfo ciptr,
 	}
     }
 
-#ifdef IPv6
+#ifdef HAVE_GETADDRINFO
    if (res != 0) {
 	addrlist->addr = addrlist->addr->ai_next;
    }
@@ -1730,7 +1751,7 @@ UnixHostReallyLocal (const char *host)
     {
 	return (1);
     } else {
-#ifdef IPv6
+#ifdef HAVE_GETADDRINFO
 	struct addrinfo *localhostaddr;
 	struct addrinfo *otherhostaddr;
 	struct addrinfo *i, *j;
@@ -1757,6 +1778,7 @@ UnixHostReallyLocal (const char *host)
 			if (memcmp(A,B,sizeof(struct in_addr)) == 0) {
 			    equiv = 1;
 			}
+#ifdef IPv6
 		    } else if (i->ai_family == AF_INET6) {
 			struct sockaddr_in6 *sinA
 			  = (struct sockaddr_in6 *) i->ai_addr;
@@ -1768,6 +1790,7 @@ UnixHostReallyLocal (const char *host)
 			if (memcmp(A,B,sizeof(struct in6_addr)) == 0) {
 			    equiv = 1;
 			}
+#endif /* IPv6 */
 		    }
 		}
 	    }
@@ -1776,7 +1799,7 @@ UnixHostReallyLocal (const char *host)
 	freeaddrinfo(localhostaddr);
 	freeaddrinfo(otherhostaddr);
 	return equiv;
-#else
+#else /* !HAVE_GETADDRINFO */
 	/*
 	 * A host may have more than one network address.  If any of the
 	 * network addresses of 'host' (specified to the connect call)

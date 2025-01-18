@@ -1650,7 +1650,7 @@ TRANS(SocketINETConnect) (XtransConnInfo ciptr,
 	 */
 
 	if (olderrno == ECONNREFUSED || olderrno == EINTR
-#ifdef IPv6
+#ifdef HAVE_GETADDRINFO
 	  || (((addrlist->addr->ai_next != NULL) ||
 	        (addrlist->addr != addrlist->firstaddr)) &&
                (olderrno == ENETUNREACH || olderrno == EAFNOSUPPORT ||

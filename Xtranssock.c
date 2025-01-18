@@ -296,23 +296,15 @@ static int
 TRANS(SocketINETGetAddr) (XtransConnInfo ciptr)
 
 {
-#ifdef IPv6
-    struct sockaddr_storage socknamev6;
+#ifdef HAVE_STRUCT_SOCKADDR_STORAGE
+    struct sockaddr_storage sockname;
 #else
-    struct sockaddr_in socknamev4;
+    struct sockaddr_in sockname;
 #endif
-    void *socknamePtr;
-    SOCKLEN_T namelen;
+    void *socknamePtr = &sockname;
+    SOCKLEN_T namelen = sizeof(sockname);
 
     prmsg (3,"SocketINETGetAddr(%p)\n", (void *) ciptr);
-
-#ifdef IPv6
-    namelen = sizeof(socknamev6);
-    socknamePtr = &socknamev6;
-#else
-    namelen = sizeof(socknamev4);
-    socknamePtr = &socknamev4;
-#endif
 
     bzero(socknamePtr, namelen);
 
@@ -338,11 +330,7 @@ TRANS(SocketINETGetAddr) (XtransConnInfo ciptr)
         return -1;
     }
 
-#ifdef IPv6
     ciptr->family = ((struct sockaddr *)socknamePtr)->sa_family;
-#else
-    ciptr->family = socknamev4.sin_family;
-#endif
     ciptr->addrlen = namelen;
     memcpy (ciptr->addr, socknamePtr, ciptr->addrlen);
 
@@ -359,25 +347,13 @@ static int
 TRANS(SocketINETGetPeerAddr) (XtransConnInfo ciptr)
 
 {
-#ifdef IPv6
-    struct sockaddr_storage socknamev6;
+#ifdef HAVE_STRUCT_SOCKADDR_STORAGE
+    struct sockaddr_storage sockname;
+#else
+    struct sockaddr_in 	sockname;
 #endif
-    struct sockaddr_in 	socknamev4;
-    void *socknamePtr;
-    SOCKLEN_T namelen;
-
-#ifdef IPv6
-    if (ciptr->family == AF_INET6)
-    {
-	namelen = sizeof(socknamev6);
-	socknamePtr = &socknamev6;
-    }
-    else
-#endif
-    {
-	namelen = sizeof(socknamev4);
-	socknamePtr = &socknamev4;
-    }
+    void *socknamePtr = &sockname;
+    SOCKLEN_T namelen = sizeof(sockname);
 
     bzero(socknamePtr, namelen);
 
@@ -863,7 +839,7 @@ TRANS(SocketINETCreateListener) (XtransConnInfo ciptr, const char *port,
                                  unsigned int flags)
 
 {
-#ifdef IPv6
+#ifdef HAVE_STRUCT_SOCKADDR_STORAGE
     struct sockaddr_storage sockname;
 #else
     struct sockaddr_in	    sockname;
@@ -937,7 +913,6 @@ TRANS(SocketINETCreateListener) (XtransConnInfo ciptr, const char *port,
 	sport = 0;
 
     bzero(&sockname, sizeof(sockname));
-#ifdef IPv6
     if (Sockettrans2devtab[ciptr->index].family == AF_INET) {
 	namelen = sizeof (struct sockaddr_in);
 #ifdef BSD44SOCKETS
@@ -947,6 +922,7 @@ TRANS(SocketINETCreateListener) (XtransConnInfo ciptr, const char *port,
 	((struct sockaddr_in *)&sockname)->sin_port = htons(sport);
 	((struct sockaddr_in *)&sockname)->sin_addr.s_addr = htonl(INADDR_ANY);
     } else {
+#ifdef IPv6
 	namelen = sizeof (struct sockaddr_in6);
 #ifdef SIN6_LEN
 	((struct sockaddr_in6 *)&sockname)->sin6_len = sizeof(sockname);
@@ -954,15 +930,13 @@ TRANS(SocketINETCreateListener) (XtransConnInfo ciptr, const char *port,
 	((struct sockaddr_in6 *)&sockname)->sin6_family = AF_INET6;
 	((struct sockaddr_in6 *)&sockname)->sin6_port = htons(sport);
 	((struct sockaddr_in6 *)&sockname)->sin6_addr = in6addr_any;
-    }
 #else
-#ifdef BSD44SOCKETS
-    sockname.sin_len = sizeof (sockname);
+        prmsg (1,
+               "SocketINETCreateListener: unsupported address family %d\n",
+               Sockettrans2devtab[ciptr->index].family);
+        return TRANS_CREATE_LISTENER_FAILED;
 #endif
-    sockname.sin_family = AF_INET;
-    sockname.sin_port = htons (sport);
-    sockname.sin_addr.s_addr = htonl (INADDR_ANY);
-#endif
+    }
 
     if ((status = TRANS(SocketCreateListener) (ciptr,
 	(struct sockaddr *) &sockname, namelen, flags)) < 0)

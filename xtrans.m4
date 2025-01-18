@@ -55,9 +55,11 @@ AC_DEFUN([XTRANS_TCP_FLAGS],[
  ])
 
  # POSIX.1g changed the type of pointer passed to getsockname/getpeername/etc.
- AC_CHECK_TYPES([socklen_t], [], [], [
+ # and added a type defined to be large enough to hold any sockaddr format.
+ AC_CHECK_TYPES([socklen_t, struct sockaddr_storage], [], [], [
 AC_INCLUDES_DEFAULT
-#include <sys/socket.h>])
+#include <sys/socket.h>
+ ])
 
  # XPG4v2/UNIX95 added msg_control - check to see if we need to define
  # _XOPEN_SOURCE to get it (such as on Solaris)

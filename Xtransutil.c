@@ -66,6 +66,12 @@ from The Open Group.
 #error "Cannot build IPv6 support without AF_INET6"
 #endif
 
+/* Temporary workaround for consumers whose configure scripts were
+   generated with pre-1.6 versions of xtrans.m4 */
+#if defined(IPv6) && !defined(HAVE_INET_NTOP)
+#define HAVE_INET_NTOP
+#endif
+
 #ifdef X11_t
 
 /*
@@ -389,7 +395,7 @@ TRANS(GetPeerNetworkId) (XtransConnInfo ciptr)
 	if (hostp != NULL)
 	  addr = hostp->h_name;
 	else
-#ifdef IPv6
+#ifdef HAVE_INET_NTOP
 	  addr = inet_ntop (family, address, addrbuf, sizeof (addrbuf));
 #else
 	  addr = inet_ntoa (saddr->sin_addr);

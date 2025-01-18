@@ -33,7 +33,7 @@ AC_DEFUN([XTRANS_TCP_FLAGS],[
  fi
 
  # Needs to come after above checks for libsocket & libnsl for SVR4 systems
- AC_CHECK_FUNCS([getaddrinfo])
+ AC_CHECK_FUNCS([getaddrinfo inet_ntop])
 
  AC_ARG_ENABLE(ipv6,
 	AS_HELP_STRING([--enable-ipv6],[Enable IPv6 support]),
